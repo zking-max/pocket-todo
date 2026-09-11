@@ -192,6 +192,12 @@ svg {
   white-space: nowrap;
 }
 
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .round-button {
   display: grid;
   width: 40px;
@@ -202,6 +208,10 @@ svg {
   border-radius: 50%;
   background: var(--paper);
   color: var(--ink-soft);
+}
+
+.web-download-button {
+  text-decoration: none;
 }
 
 .round-button:hover {
@@ -2218,9 +2228,21 @@ svg {
             <small>群消息待办</small>
           </span>
         </div>
-        <button class="round-button" type="button" id="openSettings" aria-label="设置">
-          <i data-lucide="settings-2"></i>
-        </button>
+        <div class="header-actions">
+          <a
+            class="round-button web-download-button"
+            data-web-only
+            href="./pocket-todo-android.apk"
+            download
+            aria-label="下载安卓安装包"
+            title="下载安卓安装包"
+          >
+            <i data-lucide="download"></i>
+          </a>
+          <button class="round-button" type="button" id="openSettings" aria-label="设置">
+            <i data-lucide="settings-2"></i>
+          </button>
+        </div>
       </header>
 
       <main class="app-main" id="appContent" aria-live="polite"></main>
@@ -2261,7 +2283,7 @@ svg {
     <input id="importData" type="file" accept="application/json,.json" hidden />
 
     
-    <script>window.__POCKET_TODO_NATIVE__ = true;</script>
+    <script>window.__POCKET_TODO_WEB__ = true;</script>
     <script>
 /**
  * @license lucide v1.8.0 - ISC
@@ -2310,6 +2332,12 @@ const toastStack = document.querySelector("#toastStack");
 const todayCountElement = document.querySelector("#todayCount");
 const upcomingCountElement = document.querySelector("#upcomingCount");
 const completedCountElement = document.querySelector("#completedCount");
+const isNativeApp = Boolean(window.__POCKET_TODO_NATIVE__);
+const isStandaloneWeb = Boolean(window.__POCKET_TODO_WEB__);
+
+document.querySelectorAll("[data-web-only]").forEach((element) => {
+  element.hidden = isNativeApp;
+});
 
 let state = loadState();
 let activeFilter = state.settings.lastFilter || "today";
@@ -4544,6 +4572,18 @@ function openSettingsSheet() {
           </div>
         </div>
 
+        ${
+          !isNativeApp
+            ? `<div class="settings-card">
+                 <h3>安装到手机</h3>
+                 <p>Android 可以下载 APK；iPhone 请使用 Safari 添加到主屏幕。</p>
+                 <div class="settings-actions">
+                   <a class="primary-button" href="./pocket-todo-android.apk" download>${icon("download")} 下载安卓版</a>
+                 </div>
+               </div>`
+            : ""
+        }
+
         <div class="privacy-note">
           ${icon("shield-check")}
           <span>没有账号、服务器或云同步。粘贴的文字不会离开这台设备。</span>
@@ -5007,7 +5047,7 @@ window.setInterval(() => {
   if (!sheetRoot.classList.contains("is-open")) render();
 }, 60000);
 
-if (!window.__POCKET_TODO_NATIVE__ && "serviceWorker" in navigator && /^https?:$/.test(location.protocol)) {
+if (!isNativeApp && !isStandaloneWeb && "serviceWorker" in navigator && /^https?:$/.test(location.protocol)) {
   window.addEventListener("load", () => {
     navigator.serviceWorker.register("./service-worker.js").catch((error) => {
       console.warn("离线缓存注册失败", error);
