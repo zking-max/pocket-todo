@@ -38,7 +38,7 @@
   --blue-soft: #e1edf4;
   --shadow: 0 18px 52px rgba(32, 39, 37, 0.12);
   --shadow-small: 0 7px 22px rgba(32, 39, 37, 0.08);
-  --radius: 8px;
+  --radius: 10px;
   --app-width: 720px;
   --header-height: 70px;
   --tabs-height: 66px;
@@ -1119,7 +1119,7 @@ svg {
   align-items: center;
   justify-content: center;
   gap: 7px;
-  border-radius: 7px;
+  border-radius: 9px;
   padding: 8px 13px;
   font-size: 12px;
   font-weight: 800;
@@ -1295,6 +1295,84 @@ svg {
   flex: 0 0 auto;
 }
 
+.condition-list {
+  display: grid;
+  gap: 12px;
+}
+
+.condition-card {
+  display: grid;
+  gap: 9px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: #fbfaf5;
+  padding: 13px;
+}
+
+.condition-card h3,
+.condition-card p {
+  margin: 0;
+}
+
+.condition-card h3 {
+  font-size: 15px;
+}
+
+.condition-card p {
+  color: var(--ink-soft);
+  font-size: 10px;
+}
+
+.condition-badge {
+  display: inline-flex;
+  width: max-content;
+  align-items: center;
+  gap: 5px;
+  border-radius: 999px;
+  background: var(--blue-soft);
+  color: var(--blue);
+  padding: 4px 8px;
+  font-size: 9px;
+  font-weight: 850;
+}
+
+.condition-badge svg {
+  width: 13px;
+  height: 13px;
+}
+
+.condition-options {
+  display: grid;
+  gap: 7px;
+}
+
+.condition-options label {
+  position: relative;
+  cursor: pointer;
+}
+
+.condition-options input {
+  position: absolute;
+  opacity: 0;
+}
+
+.condition-options span {
+  display: block;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: white;
+  padding: 10px 11px;
+  font-size: 11px;
+  font-weight: 750;
+}
+
+.condition-options input:checked + span {
+  border-color: var(--green);
+  background: var(--green-soft);
+  color: var(--green);
+  box-shadow: 0 0 0 2px rgba(23, 63, 58, 0.08);
+}
+
 .form-grid {
   display: grid;
   gap: 13px;
@@ -1317,7 +1395,7 @@ svg {
   width: 100%;
   min-height: 43px;
   border: 1px solid var(--line-strong);
-  border-radius: 7px;
+  border-radius: 9px;
   outline: 0;
   background: #fffefb;
   padding: 9px 10px;
@@ -1340,7 +1418,7 @@ svg {
   grid-template-columns: minmax(0, 1.25fr) minmax(0, 0.75fr);
   overflow: hidden;
   border: 1px solid var(--line-strong);
-  border-radius: 7px;
+  border-radius: 9px;
   background: #fffefb;
 }
 
@@ -1410,7 +1488,7 @@ svg {
   display: grid;
   gap: 8px;
   border: 1px solid var(--line);
-  border-radius: 7px;
+  border-radius: 10px;
   background: #fbfaf5;
   padding: 9px;
 }
@@ -1818,6 +1896,38 @@ svg {
   height: 15px;
 }
 
+.attention-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 9px;
+}
+
+.attention-card {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #fbfaf5;
+  padding: 10px 11px;
+}
+
+.attention-card h4 {
+  margin: 0;
+  color: var(--green);
+  font-size: 11px;
+}
+
+.attention-card ul {
+  display: grid;
+  gap: 5px;
+  margin: 7px 0 0;
+  padding-left: 16px;
+}
+
+.attention-card li {
+  color: var(--ink-soft);
+  font-size: 10px;
+  line-height: 1.5;
+}
+
 .step-detail-editor {
   display: grid;
   gap: 10px;
@@ -1922,7 +2032,7 @@ svg {
 
 .settings-card {
   border: 1px solid var(--line);
-  border-radius: var(--radius);
+  border-radius: 10px;
   background: #fbfaf5;
   padding: 13px;
 }
@@ -2203,6 +2313,10 @@ svg {
   .step-detail-grid {
     grid-template-columns: 1fr;
   }
+
+  .attention-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -2343,6 +2457,7 @@ let state = loadState();
 let activeFilter = state.settings.lastFilter || "today";
 let sortMode = state.settings.sortMode || "smart";
 let pendingParsedTask = null;
+let pendingConditionalParsed = null;
 let pendingConfirmAction = null;
 let pendingReparseType = "";
 let pendingReparseCustomType = "";
@@ -2647,10 +2762,100 @@ function subtractMinutes(time, minutes) {
 }
 
 function parseLocation(text = "") {
-  const match = /地点\s*:\s*([^\n]+)/.exec(normalizeText(text));
-  if (match) return stripLeadingSymbols(match[1]).replace(/[。；;]+$/, "").trim();
-  const arriveMatch = /(?:到|在)([^，,。；;\n]{2,18})(?:集合|等候|报到)/.exec(text);
-  return arriveMatch ? stripLeadingSymbols(arriveMatch[1]).trim() : "";
+  const value = normalizeNoticeText(text);
+  const explicit =
+    /【活动地点】\s*([^\n]+)/u.exec(value)?.[1] ||
+    /(?:活动)?地点\s*:\s*([^\n]+)/u.exec(value)?.[1];
+  if (explicit) return stripLeadingSymbols(explicit).replace(/[。；;]+$/, "").trim();
+
+  const patterns = [
+    /在([^，,。；;\n的]{2,20})(?:的时候|时)(?:[，,。；;\n]|$)/u,
+    /在([^，,。；;\n]{2,20}?)(?:集合|集中|考勤|等候|报到|参加|进行|举办|开展|举行|办理)/u,
+    /到([^，,。；;\n]{2,20}?)(?:集合|集中|考勤|等候|报到|参加|进行|报到)/u,
+    /(?:前往|位于|会场在|活动在)([^，,。；;\n的]{2,20})/u,
+    /在([^，,。；;\n]{2,20}?)的(?:专题|主题|活动|会议|宣讲|比赛|课程|培训)/u,
+  ];
+  for (const pattern of patterns) {
+    const match = pattern.exec(value);
+    if (!match) continue;
+    const location = stripLeadingSymbols(match[1]).trim();
+    if (/^(这里|那里|此|该|这种|相关|指定|规定)/.test(location)) continue;
+    return location;
+  }
+  return "";
+}
+
+function extractAttentionNotes(text = "") {
+  const value = normalizeNoticeText(text);
+  const notes = [];
+  const add = (category, note) => {
+    const normalizedNote = String(note || "").trim();
+    if (normalizedNote && !notes.some((item) => item.text === normalizedNote)) {
+      notes.push({ category, text: normalizedNote });
+    }
+  };
+
+  const carryPatterns = [
+    /携带([^，,。；;\n]+)/gu,
+    /(?:记得|需要|请)?带(?:好|上)?([^，,。；;\n]+)/gu,
+  ];
+  carryPatterns.forEach((pattern) => {
+    for (const match of value.matchAll(pattern)) {
+      add("携带物品", `携带${match[1].replace(/前往|到场.*$/, "").trim()}`);
+    }
+  });
+
+  for (const match of value.matchAll(/(?:统一|规范)?穿([^，,。；;\n]+)/gu)) {
+    add("着装要求", `穿${match[1].replace(/前往|到场.*$/, "").trim()}`);
+  }
+
+  const early = /提前\s*(\d+)\s*分钟(?:进场|入场|到达|到场)?/u.exec(value);
+  if (early) add("到场要求", `提前 ${early[1]} 分钟进场完毕`);
+  if (/手机.{0,12}(静音|震动)/u.test(value)) add("现场纪律", "手机调整为静音或震动模式");
+  if (/不要提前聚集|请勿.*聚集|避免.*拥堵/u.test(value)) add("现场秩序", "错峰、有序到场，不要提前聚集");
+  if (/不要.*迟到|请勿迟到/u.test(value)) add("到场要求", "按时参加，不要迟到");
+
+  const rowMatches = value.matchAll(/(第[一二三四五六七八九十\d、至到\-]+排)为([一二三四五六七八九十\d]+班)/gu);
+  for (const match of rowMatches) {
+    add("座位安排", `${match[1]}为${match[2]}`);
+  }
+  if (/第一排空着/u.test(value)) add("座位安排", "第一排空着");
+  if (/坐不下.{0,12}往后排/u.test(value)) add("座位安排", "坐不下时依次往后排坐");
+  if (/尽量坐在中间|坐在中间/u.test(value)) add("座位安排", "尽量坐在中间区域");
+  if (/试点班同学|高年级其他同学/u.test(value)) add("角色安排", "试点班同学和高年级其他同学可坐左右两侧区域前排");
+
+  return notes.slice(0, 20);
+}
+
+function buildConditionalTask(question, yesStep, options = {}) {
+  const id = `condition-${String(question)
+    .replace(/[^\u4e00-\u9fa5A-Za-z0-9]+/g, "-")
+    .slice(0, 36)}`;
+  return {
+    id,
+    question,
+    triggerText: options.triggerText || "",
+    options: [
+      {
+        value: "yes",
+        label: options.yesLabel || "是",
+        step: yesStep || null,
+      },
+      {
+        value: "no",
+        label: options.noLabel || "否",
+        step: options.noStep || null,
+      },
+      {
+        value: "unknown",
+        label: "不确定",
+        step: {
+          text: options.unknownText || `确认：${question}`,
+          done: false,
+        },
+      },
+    ],
+  };
 }
 
 function parseRequirements(text = "") {
@@ -2692,8 +2897,61 @@ function parseRequirements(text = "") {
   return [...new Set(requirements.filter(Boolean))].slice(0, 8);
 }
 
+function chineseNumberToArabic(value = "") {
+  if (!value) return "";
+  if (/^\d+$/.test(value)) return value;
+  const digits = { 零: 0, 〇: 0, 一: 1, 二: 2, 两: 2, 三: 3, 四: 4, 五: 5, 六: 6, 七: 7, 八: 8, 九: 9 };
+  let total = 0;
+  let current = 0;
+  for (const char of value) {
+    if (char in digits) {
+      current = digits[char];
+    } else if (char === "十") {
+      total += (current || 1) * 10;
+      current = 0;
+    } else if (char === "百") {
+      total += (current || 1) * 100;
+      current = 0;
+    }
+  }
+  return String(total + current);
+}
+
+function normalizeChineseNumerals(text = "") {
+  let value = String(text);
+  const numeral = "[零〇一二两三四五六七八九十百]+";
+
+  value = value.replace(new RegExp(`差(${numeral})分(${numeral})点`, "g"), (_, minute, hour) => {
+    const total = Number(chineseNumberToArabic(hour)) * 60 - Number(chineseNumberToArabic(minute));
+    const normalized = (total + 1440) % 1440;
+    return `${pad(Math.floor(normalized / 60))}:${pad(normalized % 60)}`;
+  });
+
+  value = value.replace(new RegExp(`(${numeral})点(半|(${numeral})分?)?`, "g"), (_, hour, minutePart, minute) => {
+    const normalizedHour = chineseNumberToArabic(hour);
+    const normalizedMinute = minutePart === "半" ? 30 : minute ? chineseNumberToArabic(minute) : 0;
+    return `${normalizedHour}:${pad(normalizedMinute)}`;
+  });
+
+  value = value.replace(new RegExp(`(${numeral})(?=[月日号])`, "g"), (match) => chineseNumberToArabic(match));
+  value = value.replace(new RegExp(`(${numeral})(?=[张份个名次人分]|分钟)`, "g"), (match) => chineseNumberToArabic(match));
+  return value;
+}
+
+function normalizeTimeValue(value = "") {
+  const normalized = normalizeChineseNumerals(normalizeNoticeText(value))
+    .replace(/[：]/g, ":")
+    .trim();
+  const match = /^(\d{1,2})(?::?(\d{2}))?$/.exec(normalized);
+  if (!match) return "";
+  const hours = Number(match[1]);
+  const minutes = Number(match[2] || 0);
+  if (hours > 23 || minutes > 59) return "";
+  return `${pad(hours)}:${pad(minutes)}`;
+}
+
 function normalizeNoticeText(text = "") {
-  return String(text)
+  return normalizeChineseNumerals(String(text))
     .replace(/&#x20;/gi, " ")
     .replace(/[\u200B-\u200D\uFEFF]/g, "")
     .replace(/：/g, ":")
@@ -2865,6 +3123,12 @@ function classifyNotice(text) {
   if (/国旗下讲话|升旗仪式|演讲人员|宣讲人员/.test(value)) return "speech";
   if (/高中档案|档案袋|归档材料/.test(value)) return "archive";
   if (/学生登记表|交过来|交给|材料提交/.test(value)) return "submission";
+  if (
+    parseClockRanges(value, value).length >= 2 &&
+    /游园会|宣讲会|多阶段|两场|两个阶段/.test(value)
+  ) {
+    return "multi_activity";
+  }
   if (/视频大赛|作品大赛|参赛作品/.test(value)) return "competition";
   if (/问卷调查|问卷/.test(value)) return "survey";
   if (/考试/.test(value)) return "exam";
@@ -2884,6 +3148,35 @@ function submissionParser(text, baseDate, profile = {}) {
       : gender === "女"
         ? femaleRecipients
         : "";
+  const genderCondition =
+    !gender && (maleRecipients || femaleRecipients)
+      ? {
+          id: "condition-gender-submission",
+          question: "请选择你的性别",
+          triggerText: "男生和女生的提交对象不同",
+          options: [
+            maleRecipients
+              ? {
+                  value: "男",
+                  label: "男",
+                  step: { text: `将三张学生登记表交给${maleRecipients}` },
+                }
+              : null,
+            femaleRecipients
+              ? {
+                  value: "女",
+                  label: "女",
+                  step: { text: `将三张学生登记表交给${femaleRecipients}` },
+                }
+              : null,
+            {
+              value: "其他",
+              label: "其他",
+              step: { text: "向负责人确认材料提交对象" },
+            },
+          ].filter(Boolean),
+        }
+      : null;
   const submissionText = selectedRecipients
     ? `将${/登记表/.test(value) ? "三张学生登记表" : "材料"}交给${selectedRecipients}`
     : "确认自己应交给哪位负责人";
@@ -2916,11 +3209,13 @@ function submissionParser(text, baseDate, profile = {}) {
     audience: ["需要提交材料的学生"],
     checklist: [
       taskStep(`准备${quantity}${itemName}`),
-      taskStep(submissionText, {
-        date: deadline.date || "",
-        time: deadline.time,
-        role: gender || "性别待确认",
-      }),
+      gender
+        ? taskStep(submissionText, {
+            date: deadline.date || "",
+            time: deadline.time,
+            role: gender,
+          })
+        : null,
       deadline.date
         ? taskStep("确认已按时交给对应负责人", {
             date: deadline.date,
@@ -2928,6 +3223,7 @@ function submissionParser(text, baseDate, profile = {}) {
           })
         : null,
     ].filter(Boolean),
+    conditions: genderCondition ? [genderCondition] : [],
     notes: [
       maleRecipients ? `男生交给${maleRecipients}` : "",
       femaleRecipients ? `女生交给${femaleRecipients}` : "",
@@ -2950,6 +3246,8 @@ function inferGenericTitle(text) {
   const value = normalizeNoticeText(text);
   if (/人像采集|图像采集|照片采集/.test(value)) return "参加新生人像采集";
   if (/体检/.test(value)) return "参加新生体检";
+  const eventMatch = /的([\u4e00-\u9fa5]{2,16}(?:教育活动|活动|会议|讲座|宣讲会))/u.exec(value);
+  if (eventMatch) return `参加${eventMatch[1]}`;
   const action =
     /(完成|填写|提交|参加|整理|办理|报名参加|负责|组织)\s*([^。；;\n]{2,28})/u.exec(
       cleanTitleText(value)
@@ -2972,7 +3270,7 @@ function detectTaskPriority(text) {
   if (/ddl|deadline|截止|逾期不再|务必|必须|学籍|时间紧迫|每名新生|全体|教官要求|打分机制/i.test(value)) {
     return "high";
   }
-  if (/要求|请于|请各|需要|限时|集合|考试/.test(value)) return "medium";
+  if (/要求|请|需要|限时|集合|考试|提前.*分钟/.test(value)) return "medium";
   return "low";
 }
 
@@ -3465,8 +3763,10 @@ function genericParser(text, baseDate, profile = {}) {
   const date = dates[0] || null;
   const deadline = extractDeadline(value, baseDate);
   const range = parseClockRanges(value, value)[0];
+  const clock = parseClockTimes(value, value)[0];
   const departmentTime = departmentWindow(value, profile.department || "");
   const location =
+    parseLocation(value) ||
     /地点\s*:\s*([^\n]+)/u.exec(value)?.[1]?.trim() ||
     /在([^，,。；;\n]{2,18})(?:集合|集中|举办|进行)/u.exec(value)?.[1]?.trim() ||
     "";
@@ -3481,7 +3781,7 @@ function genericParser(text, baseDate, profile = {}) {
     taskType: "一般任务",
     priority: detectTaskPriority(value),
     startDate: date?.date || deadline.date || todayIso(),
-    startTime: departmentTime.start || range?.start || "",
+    startTime: departmentTime.start || range?.start || clock?.time || "",
     endDate: date?.date || deadline.date || todayIso(),
     endTime: departmentTime.end || range?.end || "",
     deadlineDate: deadline.date || date?.date || "",
@@ -3496,6 +3796,7 @@ function genericParser(text, baseDate, profile = {}) {
     audience: [],
     checklist: checklist.length ? checklist : [taskStep("查看并处理通知内容")],
     notes: "",
+    notesItems: extractAttentionNotes(value),
     details: [
       date ? `识别到日期 ${formatFullDate(date.date)}` : "",
       range ? `识别到时间 ${range.start}-${range.end}` : "",
@@ -3504,6 +3805,100 @@ function genericParser(text, baseDate, profile = {}) {
     warnings: [
       date || deadline.date ? "" : "没有识别到明确日期，请确认。",
       date?.conflict || "",
+    ].filter(Boolean),
+  };
+}
+
+function multiActivityParser(text, baseDate, profile = {}) {
+  const value = normalizeNoticeText(text);
+  const dates = findDates(value, baseDate);
+  const date = dates[0] || null;
+  const lines = value.split("\n");
+  const timedLines = lines
+    .map((line) => ({ line, range: parseClockRanges(line, line)[0] }))
+    .filter((item) => item.range);
+  const title = cleanTitleText(
+    /【([^】]*(?:宣讲会|游园会|活动)[^】]*)】/u.exec(value)?.[1] ||
+      "参加多阶段活动"
+  );
+  const location = parseLocation(value) || (/活动中心/u.test(value) ? "活动中心" : "");
+  const steps = timedLines.slice(0, 4).map((item, index) => {
+    const label =
+      /游园会/u.test(item.line)
+        ? "参加游园会"
+        : /宣讲会/u.test(item.line)
+          ? "参加宣讲会"
+          : `活动阶段 ${index + 1}`;
+    return taskStep(label, {
+      date: date?.date || "",
+      time: item.range.start,
+      endDate: date?.date || "",
+      endTime: item.range.end,
+      location,
+    });
+  });
+
+  const registrationMatch =
+    /(?:已报名入库|报名入库)[^。\n]{0,30}?(?:自行)?前往【?([^】。，,\n]+)】?/u.exec(value) ||
+    /前往【?([^】。，,\n]+)】?教室进行入库/u.exec(value);
+  const conditions = [];
+  if (registrationMatch) {
+    const destination = registrationMatch[1].trim();
+    const lastEnd = timedLines.at(-1)?.range?.end || "";
+    const condition = buildConditionalTask(
+      "是否已经报名入库？",
+      {
+        text: `宣讲会结束后前往${destination}进行入库`,
+        date: date?.date || "",
+        time: lastEnd,
+        location: destination,
+      },
+      {
+        triggerText: "报名入库的同学",
+        yesLabel: "是，已报名入库",
+        noLabel: "否，没有报名",
+      }
+    );
+    const savedAnswer = profile.conditionAnswers?.[condition.id];
+    if (savedAnswer) {
+      const selected = condition.options.find((option) => option.value === savedAnswer);
+      if (selected?.step) steps.push(taskStep(selected.step.text, selected.step));
+    } else {
+      conditions.push(condition);
+    }
+  }
+
+  const firstRange = timedLines[0]?.range;
+  const lastRange = timedLines.at(-1)?.range;
+  return {
+    title: title.startsWith("参加") ? title : `参加${title}`,
+    taskType: "多阶段活动",
+    priority: /请各班|按时参加|不要.*迟到/.test(value) ? "high" : "medium",
+    startDate: date?.date || "",
+    startTime: firstRange?.start || "",
+    endDate: date?.date || "",
+    endTime: lastRange?.end || "",
+    location,
+    destination: registrationMatch?.[1]?.trim() || "",
+    meetingUrl: "",
+    meetingNumber: "",
+    displayNameFormat: "",
+    platform: "",
+    contacts: [/联系【([^】]+)】/u.exec(value)?.[1]].filter(Boolean),
+    audience: /大一新生/u.test(value) ? ["大一新生"] : [],
+    checklist: steps,
+    notes: "该通知包含多个连续活动，请按时间顺序参加。",
+    notesItems: extractAttentionNotes(value),
+    conditions,
+    details: [
+      date ? `识别到活动日期 ${formatFullDate(date.date)}` : "",
+      timedLines.length ? `识别到 ${timedLines.length} 个活动阶段` : "",
+      location ? `识别到地点 ${location}` : "",
+      registrationMatch ? `识别到条件任务：是否已报名入库` : "",
+    ].filter(Boolean),
+    warnings: [
+      date ? "" : "没有识别到明确日期。",
+      timedLines.length >= 2 ? "" : "没有识别到多个活动阶段。",
     ].filter(Boolean),
   };
 }
@@ -3523,6 +3918,7 @@ function parseNotice(text, profile = state?.settings || {}, forcedType = "") {
     service: serviceParser,
     exam: examParser,
     assembly: assemblyParser,
+    multi_activity: multiActivityParser,
     generic: genericParser,
   };
   const type = forcedType && parsers[forcedType] ? forcedType : autoType;
@@ -3531,6 +3927,7 @@ function parseNotice(text, profile = state?.settings || {}, forcedType = "") {
   const task = normalizeTask({
     id: uid("task"),
     ...parsed,
+    notesItems: parsed.notesItems || extractAttentionNotes(sourceText),
     sourceText,
     sourceName: "群通知",
     status: "open",
@@ -3573,7 +3970,7 @@ function createInitialState() {
   parsed.task.id = "sample-human-photo";
   parsed.task.sourceName = "示例群通知";
   return {
-    version: 3,
+    version: 4,
     tasks: [parsed.task],
     settings: {
       name: "",
@@ -3582,6 +3979,7 @@ function createInitialState() {
       department: "海关与公共管理学院",
       role: "普通学生",
       gender: "",
+      conditionAnswers: {},
       advanceMinutes: 5,
       sortMode: "smart",
       lastFilter: "today",
@@ -3611,6 +4009,13 @@ function normalizeTask(task = {}) {
     platform: String(task.platform || ""),
     contacts: Array.isArray(task.contacts) ? task.contacts.map(String).filter(Boolean) : [],
     audience: Array.isArray(task.audience) ? task.audience.map(String).filter(Boolean) : [],
+    notesItems: Array.isArray(task.notesItems)
+      ? task.notesItems.map((item) => ({
+          category: String(item.category || "注意事项"),
+          text: String(item.text || ""),
+        }))
+      : [],
+    conditions: Array.isArray(task.conditions) ? task.conditions : [],
     checklist: Array.isArray(task.checklist)
       ? task.checklist.map((item) => ({
           id: item.id || uid("check"),
@@ -3640,7 +4045,7 @@ function normalizeState(parsed, fallback) {
   const source = parsed && typeof parsed === "object" ? parsed : {};
   const settings = source.settings && typeof source.settings === "object" ? source.settings : {};
   return {
-    version: 3,
+    version: 4,
     tasks: Array.isArray(source.tasks) ? source.tasks.map(normalizeTask) : fallback.tasks,
     settings: {
       name: String(settings.name || fallback.settings.name || ""),
@@ -3649,6 +4054,10 @@ function normalizeState(parsed, fallback) {
       department: String(settings.department || fallback.settings.department || ""),
       role: String(settings.role || fallback.settings.role || "普通学生"),
       gender: ["男", "女", "其他"].includes(settings.gender) ? settings.gender : "",
+      conditionAnswers:
+        settings.conditionAnswers && typeof settings.conditionAnswers === "object"
+          ? settings.conditionAnswers
+          : {},
       advanceMinutes: Number.isFinite(Number(settings.advanceMinutes))
         ? Number(settings.advanceMinutes)
         : fallback.settings.advanceMinutes,
@@ -4010,6 +4419,7 @@ function closeSheet() {
   sheetBackdrop.hidden = true;
   document.body.style.overflow = "";
   pendingParsedTask = null;
+  pendingConditionalParsed = null;
   pendingConfirmAction = null;
   pendingReparseType = "";
   pendingReparseCustomType = "";
@@ -4056,7 +4466,7 @@ function parsedStepEditors(steps) {
               日期与时间
               <span class="datetime-combo compact">
                 <input type="date" data-step-date value="${escapeHtml(step.date || "")}" />
-                <input type="time" data-step-time value="${escapeHtml(step.time || "")}" />
+                <input type="text" inputmode="numeric" maxlength="5" data-time-input data-step-time value="${escapeHtml(step.time || "")}" placeholder="18:30" />
               </span>
             </label>
             <label>地点<input data-step-location value="${escapeHtml(step.location || "")}" maxlength="60" /></label>
@@ -4083,7 +4493,7 @@ function taskStepEditors(steps, taskId = "") {
               日期与时间
               <span class="datetime-combo compact">
                 <input type="date" data-edit-step-date value="${escapeHtml(step.date || "")}" />
-                <input type="time" data-edit-step-time value="${escapeHtml(step.time || "")}" />
+                <input type="text" inputmode="numeric" maxlength="5" data-time-input data-edit-step-time value="${escapeHtml(step.time || "")}" placeholder="18:30" />
               </span>
             </label>
             <label>地点<input data-edit-step-location value="${escapeHtml(step.location || "")}" maxlength="60" /></label>
@@ -4092,6 +4502,103 @@ function taskStepEditors(steps, taskId = "") {
       `
     )
     .join("");
+}
+
+function openConditionPrompt(parsed) {
+  const conditions = parsed.task.conditions || [];
+  if (!conditions.length) {
+    pendingParsedTask = parsed;
+    openParsePreview(parsed);
+    return;
+  }
+
+  openSheet({
+    title: "补充筛选条件",
+    subtitle: "这份通知包含条件分支，需要确认后才能生成准确任务",
+    content: `
+      <div class="condition-list">
+        ${conditions
+          .map(
+            (condition, conditionIndex) => `
+              <section class="condition-card" data-condition-index="${conditionIndex}">
+                <span class="condition-badge">${icon("git-branch")} 条件任务</span>
+                <h3>${escapeHtml(condition.question)}</h3>
+                ${
+                  condition.triggerText
+                    ? `<p>原文：${escapeHtml(condition.triggerText)}</p>`
+                    : ""
+                }
+                <div class="condition-options">
+                  ${condition.options
+                    .map(
+                      (option, optionIndex) => `
+                        <label>
+                          <input
+                            type="radio"
+                            name="condition-answer-${conditionIndex}"
+                            value="${escapeHtml(option.value)}"
+                            data-condition-id="${escapeHtml(condition.id)}"
+                            data-condition-option="${optionIndex}"
+                          />
+                          <span>${escapeHtml(option.label)}</span>
+                        </label>
+                      `
+                    )
+                    .join("")}
+                </div>
+              </section>
+            `
+          )
+          .join("")}
+      </div>
+    `,
+    footer: `
+      <button class="ghost-button" type="button" data-action="back-to-paste">${icon("arrow-left")} 返回通知</button>
+      <button class="primary-button" type="button" data-action="submit-conditions">${icon("wand-sparkles")} 按条件生成任务</button>
+    `,
+  });
+}
+
+function submitConditions() {
+  if (!pendingConditionalParsed) return;
+  const conditions = pendingConditionalParsed.task.conditions || [];
+  const resolvedSteps = [];
+  const answers = {};
+
+  for (let index = 0; index < conditions.length; index += 1) {
+    const condition = conditions[index];
+    const selected = document.querySelector(
+      `input[name="condition-answer-${index}"]:checked`
+    );
+    if (!selected) {
+      document.querySelector(`[data-condition-index="${index}"]`)?.scrollIntoView({
+        behavior: "smooth",
+        block: "center",
+      });
+      showToast(`请先回答：${condition.question}`, "error");
+      return;
+    }
+    const option = condition.options.find((item) => item.value === selected.value);
+    answers[condition.id] = selected.value;
+    if (option?.step) {
+      resolvedSteps.push(taskStep(option.step.text, option.step));
+    }
+  }
+
+  pendingConditionalParsed.task.checklist.push(...resolvedSteps);
+  pendingConditionalParsed.task.conditions = [];
+  pendingConditionalParsed.task.conditionAnswers = {
+    ...(pendingConditionalParsed.task.conditionAnswers || {}),
+    ...answers,
+  };
+  state.settings.conditionAnswers = {
+    ...(state.settings.conditionAnswers || {}),
+    ...answers,
+  };
+  saveState();
+  pendingParsedTask = pendingConditionalParsed;
+  pendingConditionalParsed = null;
+  openParsePreview(pendingParsedTask);
 }
 
 function openParsePreview(parsed) {
@@ -4132,6 +4639,7 @@ function openParsePreview(parsed) {
                 <option value="assembly" ${parsed.noticeType === "assembly" ? "selected" : ""}>集合考勤</option>
                 <option value="exam" ${parsed.noticeType === "exam" ? "selected" : ""}>考试</option>
                 <option value="meeting" ${parsed.noticeType === "meeting" ? "selected" : ""}>线上会议</option>
+                <option value="multi_activity" ${parsed.noticeType === "multi_activity" ? "selected" : ""}>多阶段活动</option>
                 <option value="speech" ${parsed.noticeType === "speech" ? "selected" : ""}>演讲活动</option>
                 <option value="archive" ${parsed.noticeType === "archive" ? "selected" : ""}>档案材料</option>
                 <option value="submission" ${parsed.noticeType === "submission" ? "selected" : ""}>材料提交</option>
@@ -4156,6 +4664,7 @@ function openParsePreview(parsed) {
                   "集合考勤",
                   "考试",
                   "线上会议",
+                  "多阶段活动",
                   "演讲活动",
                   "档案材料",
                   "材料提交",
@@ -4179,14 +4688,14 @@ function openParsePreview(parsed) {
               <span class="field-label">开始时间</span>
               <div class="datetime-combo">
                 <input aria-label="开始日期" id="parsedStartDate" type="date" value="${escapeHtml(task.startDate)}" />
-                <input aria-label="开始时刻" id="parsedStartTime" type="time" value="${escapeHtml(task.startTime)}" />
+                <input aria-label="开始时刻" id="parsedStartTime" type="text" inputmode="numeric" maxlength="5" data-time-input value="${escapeHtml(task.startTime)}" placeholder="18:30" />
               </div>
             </div>
             <div class="field">
               <span class="field-label">结束时间 / DDL</span>
               <div class="datetime-combo">
                 <input aria-label="结束日期" id="parsedEndDate" type="date" value="${escapeHtml(task.endDate)}" />
-                <input aria-label="结束时刻" id="parsedEndTime" type="time" value="${escapeHtml(task.endTime)}" />
+                <input aria-label="结束时刻" id="parsedEndTime" type="text" inputmode="numeric" maxlength="5" data-time-input value="${escapeHtml(task.endTime)}" placeholder="18:30" />
               </div>
             </div>
           </div>
@@ -4198,6 +4707,15 @@ function openParsePreview(parsed) {
             </div>
             <button class="secondary-button" type="button" data-action="add-parsed-step">${icon("plus")} 添加步骤</button>
           </div>
+
+          ${
+            task.notesItems?.length
+              ? `<div class="field">
+                   <span class="field-label">识别到的注意事项</span>
+                   ${renderStructuredNotes(task)}
+                 </div>`
+              : ""
+          }
 
           <div class="form-row">
             <div class="field">
@@ -4254,6 +4772,7 @@ function taskFormContent(task, editing = false) {
               "集合考勤",
               "考试",
               "线上会议",
+              "多阶段活动",
               "演讲活动",
               "档案材料",
               "材料提交",
@@ -4277,14 +4796,14 @@ function taskFormContent(task, editing = false) {
           <span class="field-label">开始时间</span>
           <div class="datetime-combo">
             <input aria-label="开始日期" id="editStartDate" type="date" value="${escapeHtml(task.startDate)}" />
-            <input aria-label="开始时刻" id="editStartTime" type="time" value="${escapeHtml(task.startTime)}" />
+            <input aria-label="开始时刻" id="editStartTime" type="text" inputmode="numeric" maxlength="5" data-time-input value="${escapeHtml(task.startTime)}" placeholder="18:30" />
           </div>
         </div>
         <div class="field">
           <span class="field-label">结束时间 / DDL</span>
           <div class="datetime-combo">
             <input aria-label="结束日期" id="editEndDate" type="date" value="${escapeHtml(task.endDate)}" />
-            <input aria-label="结束时刻" id="editEndTime" type="time" value="${escapeHtml(task.endTime)}" />
+            <input aria-label="结束时刻" id="editEndTime" type="text" inputmode="numeric" maxlength="5" data-time-input value="${escapeHtml(task.endTime)}" placeholder="18:30" />
           </div>
         </div>
       </div>
@@ -4385,14 +4904,14 @@ function renderProgressSteps(task) {
                            <span class="field-label">开始时间</span>
                            <div class="datetime-combo compact">
                              <input aria-label="子任务开始日期" data-step-edit-start-date type="date" value="${escapeHtml(step.date || "")}" />
-                             <input aria-label="子任务开始时刻" data-step-edit-start-time type="time" value="${escapeHtml(step.time || "")}" />
+                             <input aria-label="子任务开始时刻" data-time-input data-step-edit-start-time type="text" inputmode="numeric" maxlength="5" value="${escapeHtml(step.time || "")}" placeholder="18:30" />
                            </div>
                          </div>
                          <div class="field">
                            <span class="field-label">结束时间 / DDL</span>
                            <div class="datetime-combo compact">
                              <input aria-label="子任务结束日期" data-step-edit-end-date type="date" value="${escapeHtml(step.endDate || "")}" />
-                             <input aria-label="子任务结束时刻" data-step-edit-end-time type="time" value="${escapeHtml(step.endTime || "")}" />
+                             <input aria-label="子任务结束时刻" data-time-input data-step-edit-end-time type="text" inputmode="numeric" maxlength="5" value="${escapeHtml(step.endTime || "")}" placeholder="18:30" />
                            </div>
                          </div>
                        </div>
@@ -4407,6 +4926,32 @@ function renderProgressSteps(task) {
                   : ""
               }
             </article>
+          `
+        )
+        .join("")}
+    </div>
+  `;
+}
+
+function renderStructuredNotes(task) {
+  if (!task.notesItems?.length) return "";
+  const groups = task.notesItems.reduce((result, item) => {
+    const category = item.category || "注意事项";
+    if (!result[category]) result[category] = [];
+    result[category].push(item.text);
+    return result;
+  }, {});
+  return `
+    <div class="attention-grid">
+      ${Object.entries(groups)
+        .map(
+          ([category, notes]) => `
+            <section class="attention-card">
+              <h4>${escapeHtml(category)}</h4>
+              <ul>
+                ${notes.map((note) => `<li>${escapeHtml(note)}</li>`).join("")}
+              </ul>
+            </section>
           `
         )
         .join("")}
@@ -4451,6 +4996,15 @@ function openTaskProgressSheet(taskId) {
           <h3>分步打勾</h3>
           ${renderProgressSteps(task)}
         </section>
+
+        ${
+          task.notesItems?.length
+            ? `<section class="progress-section">
+                 <h3>注意事项</h3>
+                 ${renderStructuredNotes(task)}
+               </section>`
+            : ""
+        }
 
         ${
           task.notes
@@ -4622,9 +5176,9 @@ function saveParsedTask() {
     title: form.querySelector("#parsedTitle")?.value.trim() || task.title,
     taskType: form.querySelector("#parsedTaskType")?.value.trim() || task.taskType,
     startDate: form.querySelector("#parsedStartDate")?.value || task.startDate,
-    startTime: form.querySelector("#parsedStartTime")?.value || "",
+    startTime: normalizeTimeValue(form.querySelector("#parsedStartTime")?.value || ""),
     endDate: form.querySelector("#parsedEndDate")?.value || task.endDate,
-    endTime: form.querySelector("#parsedEndTime")?.value || "",
+    endTime: normalizeTimeValue(form.querySelector("#parsedEndTime")?.value || ""),
     location: form.querySelector("#parsedLocation")?.value.trim() || "",
     destination: form.querySelector("#parsedDestination")?.value.trim() || "",
     priority: form.querySelector('input[name="parsedPriority"]:checked')?.value || task.priority,
@@ -4650,9 +5204,9 @@ function saveEditedTask(taskId) {
   task.title = titleInput.value.trim() || task.title;
   task.taskType = form.querySelector("#editTaskType")?.value.trim() || task.taskType;
   task.startDate = form.querySelector("#editStartDate")?.value || task.startDate;
-  task.startTime = form.querySelector("#editStartTime")?.value || "";
+  task.startTime = normalizeTimeValue(form.querySelector("#editStartTime")?.value || "");
   task.endDate = form.querySelector("#editEndDate")?.value || task.endDate;
-  task.endTime = form.querySelector("#editEndTime")?.value || "";
+  task.endTime = normalizeTimeValue(form.querySelector("#editEndTime")?.value || "");
   task.location = form.querySelector("#editLocation")?.value.trim() || "";
   task.destination = form.querySelector("#editDestination")?.value.trim() || "";
   task.priority = form.querySelector('input[name="editPriority"]:checked')?.value || task.priority;
@@ -4663,7 +5217,7 @@ function saveEditedTask(taskId) {
     text: element.querySelector("[data-edit-step-title]")?.value.trim() || task.checklist[index]?.text || "未命名步骤",
     done: Boolean(element.querySelector("[data-edit-check-index]")?.checked),
     date: element.querySelector("[data-edit-step-date]")?.value || "",
-    time: element.querySelector("[data-edit-step-time]")?.value || "",
+    time: normalizeTimeValue(element.querySelector("[data-edit-step-time]")?.value || ""),
     endDate: task.checklist[index]?.endDate || "",
     endTime: task.checklist[index]?.endTime || "",
     location: element.querySelector("[data-edit-step-location]")?.value.trim() || "",
@@ -4730,9 +5284,9 @@ function saveStepDetails(taskId, stepId) {
   const content = document.querySelector(".sheet-content");
   if (!task || !step || !content) return;
   step.date = content.querySelector("[data-step-edit-start-date]")?.value || "";
-  step.time = content.querySelector("[data-step-edit-start-time]")?.value || "";
+  step.time = normalizeTimeValue(content.querySelector("[data-step-edit-start-time]")?.value || "");
   step.endDate = content.querySelector("[data-step-edit-end-date]")?.value || "";
-  step.endTime = content.querySelector("[data-step-edit-end-time]")?.value || "";
+  step.endTime = normalizeTimeValue(content.querySelector("[data-step-edit-end-time]")?.value || "");
   step.location = content.querySelector("[data-step-edit-location]")?.value.trim() || "";
   step.notes = content.querySelector("[data-step-edit-notes]")?.value.trim() || "";
   task.updatedAt = new Date().toISOString();
@@ -4782,7 +5336,10 @@ function deleteTask(taskId) {
 }
 
 function openParseSourceAgain() {
-  const source = pendingParsedTask?.task?.sourceText || "";
+  const source =
+    pendingParsedTask?.task?.sourceText ||
+    pendingConditionalParsed?.task?.sourceText ||
+    "";
   openPasteSheet();
   const textarea = document.querySelector("#noticeInput");
   if (textarea) textarea.value = source;
@@ -4813,7 +5370,7 @@ function showToast(message, options = {}) {
 function exportData() {
   const payload = {
     app: "到点 · 群消息待办",
-    version: 3,
+    version: 4,
     exportedAt: new Date().toISOString(),
     state,
   };
@@ -4873,9 +5430,16 @@ function handleAction(actionElement) {
         showToast("请先粘贴一条群通知", "error");
         return;
       }
-      pendingParsedTask = parseNotice(text, state.settings);
-      openParsePreview(pendingParsedTask);
+      const parsed = parseNotice(text, state.settings);
+      if (parsed.task.conditions?.length) {
+        pendingConditionalParsed = parsed;
+        openConditionPrompt(parsed);
+      } else {
+        pendingParsedTask = parsed;
+        openParsePreview(parsed);
+      }
     },
+    "submit-conditions": submitConditions,
     "back-to-paste": openParseSourceAgain,
     "save-parsed-task": saveParsedTask,
     "reparse-template": () => {
@@ -4982,7 +5546,7 @@ function handleAction(actionElement) {
     "clear-data": () => {
       pendingConfirmAction = () => {
         state = {
-    version: 3,
+    version: 4,
           tasks: [],
           settings: {
             ...state.settings,
@@ -5040,6 +5604,12 @@ document.querySelector("#importData").addEventListener("change", (event) => {
 
 document.addEventListener("keydown", (event) => {
   if (event.key === "Escape" && sheetRoot.classList.contains("is-open")) closeSheet();
+});
+
+document.addEventListener("focusout", (event) => {
+  if (event.target.matches?.("[data-time-input]")) {
+    event.target.value = normalizeTimeValue(event.target.value);
+  }
 });
 
 window.addEventListener("focus", render);
