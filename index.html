@@ -518,6 +518,11 @@ svg {
   box-shadow: inset 4px 0 0 var(--orange);
 }
 
+.task-item.is-in-progress {
+  box-shadow: inset 4px 0 0 var(--green-mid);
+  background: #f4faf7;
+}
+
 .task-item.is-completed {
   opacity: 0.55;
 }
@@ -1371,6 +1376,65 @@ svg {
   background: var(--green-soft);
   color: var(--green);
   box-shadow: 0 0 0 2px rgba(23, 63, 58, 0.08);
+}
+
+.guide-card {
+  display: grid;
+  min-height: 310px;
+  place-items: center;
+  align-content: center;
+  border-radius: 14px;
+  background: var(--green-soft);
+  padding: 28px 22px;
+  text-align: center;
+}
+
+.guide-icon {
+  display: grid;
+  width: 68px;
+  height: 68px;
+  place-items: center;
+  border-radius: 22px;
+  background: var(--green);
+  color: white;
+  box-shadow: 0 12px 30px rgba(23, 63, 58, 0.2);
+}
+
+.guide-icon svg {
+  width: 32px;
+  height: 32px;
+}
+
+.guide-card h3 {
+  margin: 19px 0 0;
+  font-size: 21px;
+}
+
+.guide-card p {
+  max-width: 390px;
+  margin: 8px 0 0;
+  color: var(--green-mid);
+  font-size: 12px;
+  line-height: 1.75;
+}
+
+.guide-dots {
+  display: flex;
+  gap: 6px;
+  margin-top: 24px;
+}
+
+.guide-dots span {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: rgba(23, 63, 58, 0.2);
+}
+
+.guide-dots span.is-active {
+  width: 20px;
+  border-radius: 999px;
+  background: var(--green);
 }
 
 .form-grid {
@@ -2439,6 +2503,88 @@ const PRIORITY_META = {
   low: { label: "稍后", order: 2 },
 };
 
+const KEYWORD_GROUPS = {
+  infoCollection: [
+    "信息收集",
+    "信息采集",
+    "个人信息",
+    "Excel模板",
+    "表格模板",
+    "团员信息",
+    "新生团员",
+  ],
+  emergencyTraining: [
+    "应急救护",
+    "急救培训",
+    "消防演练",
+    "安全教育",
+    "自救互救",
+  ],
+  materials: [
+    "提交",
+    "上交",
+    "交给",
+    "报送",
+    "汇总",
+    "上传",
+    "发送",
+    "文件命名",
+    "命名格式",
+    "Excel",
+    "登记表",
+    "报名表",
+  ],
+  locationMarkers: [
+    "地点",
+    "在",
+    "到",
+    "前往",
+    "集合于",
+    "举办于",
+    "位于",
+    "教室",
+    "阶梯",
+    "活动中心",
+  ],
+  conditions: [
+    "男生",
+    "女生",
+    "已报名",
+    "未报名",
+    "报名入库",
+    "导生",
+    "临负",
+    "舍长",
+    "宿舍长",
+    "相关同学",
+    "符合条件",
+    "对应教室",
+    "按照安排",
+  ],
+  attention: [
+    "注意",
+    "须知",
+    "务必",
+    "必须",
+    "提前",
+    "不要",
+    "请勿",
+    "禁止",
+    "静音",
+    "震动",
+    "座位",
+    "着装",
+    "携带",
+    "打印",
+    "排队",
+    "整队",
+  ],
+};
+
+function containsKeyword(text, groupName) {
+  return KEYWORD_GROUPS[groupName]?.some((keyword) => text.includes(keyword)) || false;
+}
+
 const appContent = document.querySelector("#appContent");
 const sheetRoot = document.querySelector("#sheetRoot");
 const sheetBackdrop = document.querySelector("#sheetBackdrop");
@@ -2463,6 +2609,7 @@ let pendingReparseType = "";
 let pendingReparseCustomType = "";
 let lastCompletedTaskId = "";
 let expandedStepId = "";
+let guidePage = 0;
 
 function uid(prefix = "task") {
   if (window.crypto?.randomUUID) return `${prefix}-${window.crypto.randomUUID()}`;
@@ -2544,15 +2691,21 @@ function taskProgress(task) {
 
 function taskDateTime(task) {
   const nextStep = getNextStep(task);
+  const stepHasStart = Boolean(nextStep?.date);
+  const taskHasStart = Boolean(task.startTime);
   const date = parseIsoDate(
-    nextStep?.endDate || nextStep?.date || task.endDate || task.startDate
+    stepHasStart
+      ? nextStep.date
+      : taskHasStart
+        ? task.startDate
+        : nextStep?.endDate || task.endDate || task.startDate
   );
   if (!date) return null;
   const time =
+    (stepHasStart ? nextStep.time : "") ||
+    (taskHasStart ? task.startTime : "") ||
     nextStep?.endTime ||
-    nextStep?.time ||
     task.endTime ||
-    task.startTime ||
     "23:59";
   const [hours, minutes] = time.split(":").map(Number);
   date.setHours(Number.isFinite(hours) ? hours : 23, Number.isFinite(minutes) ? minutes : 59, 0, 0);
@@ -2576,7 +2729,11 @@ function minutesUntil(task) {
 
 function formatCountdown(task) {
   if (task.status === "done") return "已完成";
+  const startTime = taskDateTime(task);
   const endTime = taskEndDateTime(task);
+  if (startTime && endTime && startTime <= new Date() && endTime > new Date()) {
+    return "进行中";
+  }
   if (task.taskType === "线上会议" && endTime && endTime < new Date()) return "已结束";
   const minutes = minutesUntil(task);
   if (!Number.isFinite(minutes)) return "未设置时间";
@@ -3120,6 +3277,8 @@ function classifyNotice(text) {
   const value = normalizeNoticeText(text);
   if (/会议号|入会链接|线上会议|钉钉会议|腾讯会议/.test(value)) return "meeting";
   if (/绿色通道|补办/.test(value)) return "service";
+  if (containsKeyword(value, "emergencyTraining")) return "emergency_training";
+  if (containsKeyword(value, "infoCollection")) return "info_collection";
   if (/国旗下讲话|升旗仪式|演讲人员|宣讲人员/.test(value)) return "speech";
   if (/高中档案|档案袋|归档材料/.test(value)) return "archive";
   if (/学生登记表|交过来|交给|材料提交/.test(value)) return "submission";
@@ -3238,6 +3397,191 @@ function submissionParser(text, baseDate, profile = {}) {
     warnings: [
       deadline.date ? "" : "没有识别到明确截止日期。",
       !gender && (maleRecipients || femaleRecipients) ? "设置中还没有性别信息，请确认提交对象。" : "",
+    ].filter(Boolean),
+  };
+}
+
+function infoCollectionParser(text, baseDate, profile = {}) {
+  const value = normalizeNoticeText(text);
+  const deadline = extractDeadline(value, baseDate);
+  const contact = /微信交【([^】]+)】/u.exec(value)?.[1] || "海管2504熊飞扬";
+  const fileNameFormat =
+    /命名格式\s*:\s*([^\n]+)/u.exec(value)?.[1]?.trim() ||
+    "xx团支部-2026级新生团员信息收集表";
+  const organizer = /导生|临负|团支部书记|团支书/.test(profile.role || "");
+  const conditionId = "condition-new-league-member";
+  const savedMembership = profile.conditionAnswers?.[conditionId] || "";
+  const conditions = [];
+  const checklist = [];
+
+  if (organizer) {
+    checklist.push(
+      taskStep("组织本班新生团员填写Excel模板"),
+      taskStep("汇总并检查团员个人信息"),
+      taskStep(`按“${fileNameFormat}”命名文件`),
+      taskStep(`以班级为单位通过企业微信交给${contact}`),
+      taskStep("确认9月19日18:00前提交成功")
+    );
+  } else if (savedMembership === "yes") {
+    checklist.push(
+      taskStep("填写团员个人信息Excel模板"),
+      taskStep("检查姓名、学号和团员信息"),
+      taskStep(`按“${fileNameFormat}”命名文件`),
+      taskStep(`通过企业微信交给${contact}`),
+      taskStep("确认9月19日18:00前提交成功")
+    );
+  } else if (savedMembership !== "no") {
+    conditions.push({
+      id: conditionId,
+      question: "你是否是2026级新生团员？",
+      triggerText: "各支部导生/临负组织新生团员填写信息",
+      options: [
+        {
+          value: "yes",
+          label: "是，我是新生团员",
+          step: {
+            text: `填写并以班级为单位提交信息表给${contact}`,
+            date: deadline.date,
+            time: deadline.time,
+          },
+        },
+        {
+          value: "no",
+          label: "不是新生团员",
+          skipTask: true,
+        },
+        {
+          value: "unknown",
+          label: "不确定",
+          step: { text: "确认自己是否为2026级新生团员" },
+        },
+      ],
+    });
+  }
+
+  return {
+    title: organizer
+      ? "组织提交2026级新生团员信息收集表"
+      : "提交2026级新生团员信息收集表",
+    taskType: "信息收集",
+    priority: "high",
+    startDate: todayIso(),
+    startTime: "",
+    endDate: deadline.date || "",
+    endTime: deadline.time,
+    deadlineDate: deadline.date || "",
+    deadlineTime: deadline.time,
+    location: "线上",
+    destination: "",
+    meetingUrl: "",
+    meetingNumber: "",
+    displayNameFormat: "",
+    platform: "企业微信",
+    contacts: [contact],
+    audience: ["2026级新生团员"],
+    checklist,
+    conditions,
+    notes: `接收人：${contact}；命名格式：${fileNameFormat}`,
+    notesItems: [
+      { category: "材料要求", text: "使用规定的Excel模板" },
+      { category: "提交要求", text: "以班级为单位通过企业微信提交" },
+      { category: "命名要求", text: `文件命名为：${fileNameFormat}` },
+      { category: "接收人", text: contact },
+    ],
+    details: [
+      deadline.date ? `识别到截止时间 ${formatFullDate(deadline.date)} ${deadline.time}` : "",
+      `识别到接收人 ${contact}`,
+      `识别到文件命名格式 ${fileNameFormat}`,
+    ].filter(Boolean),
+    warnings: deadline.date ? [] : ["没有识别到明确截止日期。"],
+    skip: savedMembership === "no" && !organizer,
+  };
+}
+
+function emergencyTrainingParser(text, baseDate, profile = {}) {
+  const value = normalizeNoticeText(text);
+  const date = findDates(value, baseDate)[0] || null;
+  const ranges = parseClockRanges(value, value);
+  const range = ranges[0] || null;
+  const locationLine = /【活动地点】\s*([^\n]+)/u.exec(value)?.[1] || "";
+  const locationOptions = locationLine
+    .split(/[、,，]/)
+    .map((item) => item.replace(/[【】]/g, "").trim())
+    .filter(Boolean);
+  const contact = /联系【([^】]+)】/u.exec(value)?.[1] || "";
+  const conditionId = "condition-training-classroom";
+  const savedClassroom = profile.conditionAnswers?.[conditionId] || "";
+  const conditions = [];
+  if (!savedClassroom && locationOptions.length > 1) {
+    conditions.push({
+      id: conditionId,
+      question: "你所在班级对应哪个培训教室？",
+      triggerText: "请按照安排前往对应阶梯教室",
+      options: [
+        ...locationOptions.map((location) => ({
+          value: location,
+          label: location,
+          location,
+        })),
+        {
+          value: "pending",
+          label: "教室安排尚未通知",
+          step: { text: "等待并确认本班对应的阶梯教室" },
+        },
+      ],
+    });
+  }
+  return {
+    title: "参加军训应急救护普及培训",
+    taskType: "培训活动",
+    priority: "high",
+    startDate: date?.date || "",
+    startTime: range?.start || "",
+    endDate: date?.date || "",
+    endTime: range?.end || "",
+    location: savedClassroom && savedClassroom !== "pending" ? savedClassroom : locationOptions.join("、"),
+    locationOptions,
+    dependencies: [/消防演练与安全教育/.test(value) ? "消防演练与安全教育" : ""].filter(Boolean),
+    destination: "",
+    meetingUrl: "",
+    meetingNumber: "",
+    displayNameFormat: "",
+    platform: "",
+    contacts: [contact].filter(Boolean),
+    audience: ["全体大一新生"],
+    checklist: [
+      taskStep("参加消防演练与安全教育"),
+      taskStep("消防演练结束后，以班级为单位立即整队"),
+      taskStep("确认本班对应的阶梯教室"),
+      taskStep("有序前往指定阶梯教室", {
+        date: date?.date || "",
+        time: range?.start || "",
+        location: savedClassroom && savedClassroom !== "pending" ? savedClassroom : "",
+      }),
+      taskStep("参加军训应急救护普及培训", {
+        date: date?.date || "",
+        time: range?.start || "",
+        endDate: date?.date || "",
+        endTime: range?.end || "",
+      }),
+    ],
+    conditions,
+    notes: "预计15:30开始，实际开始时间取决于消防演练与安全教育结束时间。",
+    notesItems: [
+      { category: "到场要求", text: "消防演练结束后立即以班级为单位整队" },
+      { category: "地点安排", text: `可选教室：${locationOptions.join("、")}` },
+      { category: "地点安排", text: "具体教室需要根据班级安排确认" },
+      { category: "纪律要求", text: "按班级统一有序前往，不要自行散开" },
+    ],
+    details: [
+      date ? `识别到日期 ${formatFullDate(date.date)}` : "",
+      range ? `识别到预计时间 ${range.start}-${range.end}` : "",
+      locationOptions.length ? `识别到地点选项 ${locationOptions.join("、")}` : "",
+      "识别到前序依赖：消防演练与安全教育",
+    ].filter(Boolean),
+    warnings: [
+      date ? "" : "没有识别到明确日期。",
+      "开始时间为预计时间，可能随前序活动调整。",
     ].filter(Boolean),
   };
 }
@@ -3911,6 +4255,8 @@ function parseNotice(text, profile = state?.settings || {}, forcedType = "") {
   const parsers = {
     meeting: meetingParser,
     submission: submissionParser,
+    info_collection: infoCollectionParser,
+    emergency_training: emergencyTrainingParser,
     speech: speechParser,
     archive: archiveParser,
     competition: competitionParser,
@@ -3980,6 +4326,12 @@ function createInitialState() {
       role: "普通学生",
       gender: "",
       conditionAnswers: {},
+      seenAt: {
+        today: new Date().toISOString(),
+        upcoming: new Date().toISOString(),
+        completed: new Date().toISOString(),
+      },
+      guideSeen: false,
       advanceMinutes: 5,
       sortMode: "smart",
       lastFilter: "today",
@@ -4002,6 +4354,12 @@ function normalizeTask(task = {}) {
     endDate: String(task.endDate || task.deadlineDate || startDate),
     endTime: String(task.endTime || task.deadlineTime || ""),
     location: String(task.location || ""),
+    locationOptions: Array.isArray(task.locationOptions)
+      ? task.locationOptions.map(String).filter(Boolean)
+      : [],
+    dependencies: Array.isArray(task.dependencies)
+      ? task.dependencies.map(String).filter(Boolean)
+      : [],
     destination: String(task.destination || ""),
     meetingUrl: String(task.meetingUrl || ""),
     meetingNumber: String(task.meetingNumber || ""),
@@ -4016,6 +4374,7 @@ function normalizeTask(task = {}) {
         }))
       : [],
     conditions: Array.isArray(task.conditions) ? task.conditions : [],
+    skip: Boolean(task.skip),
     checklist: Array.isArray(task.checklist)
       ? task.checklist.map((item) => ({
           id: item.id || uid("check"),
@@ -4058,6 +4417,19 @@ function normalizeState(parsed, fallback) {
         settings.conditionAnswers && typeof settings.conditionAnswers === "object"
           ? settings.conditionAnswers
           : {},
+      seenAt:
+        settings.seenAt && typeof settings.seenAt === "object"
+          ? {
+              today: settings.seenAt.today || new Date().toISOString(),
+              upcoming: settings.seenAt.upcoming || new Date().toISOString(),
+              completed: settings.seenAt.completed || new Date().toISOString(),
+            }
+          : {
+              today: new Date().toISOString(),
+              upcoming: new Date().toISOString(),
+              completed: new Date().toISOString(),
+            },
+      guideSeen: Boolean(settings.guideSeen),
       advanceMinutes: Number.isFinite(Number(settings.advanceMinutes))
         ? Number(settings.advanceMinutes)
         : fallback.settings.advanceMinutes,
@@ -4153,18 +4525,31 @@ function filterTasks() {
 function syncCounts() {
   const endOfToday = new Date();
   endOfToday.setHours(23, 59, 59, 999);
-  const today = getOpenTasks().filter((task) => {
+  const todayTasks = getOpenTasks().filter((task) => {
     const due = taskDateTime(task);
     return due ? due <= endOfToday : task.startDate <= todayIso();
-  }).length;
-  const upcoming = getOpenTasks().length;
-  const completed = getCompletedTasks().length;
-  todayCountElement.textContent = String(today);
-  upcomingCountElement.textContent = String(upcoming);
-  completedCountElement.textContent = String(completed);
-  todayCountElement.hidden = today === 0;
-  upcomingCountElement.hidden = upcoming === 0;
-  completedCountElement.hidden = completed === 0;
+  });
+  const now = new Date();
+  const seenAt = new Date(state.settings.seenAt?.today || 0).getTime();
+  const unread = todayTasks.some((task) => new Date(task.updatedAt).getTime() > seenAt);
+  const urgent = todayTasks.some((task) => {
+    const due = taskDateTime(task);
+    if (!due) return false;
+    const minutes = Math.round((due - now) / 60000);
+    return due < now || minutes <= 30;
+  });
+  const badgeCount = unread || urgent ? todayTasks.length : 0;
+  todayCountElement.textContent = String(badgeCount);
+  upcomingCountElement.textContent = "";
+  completedCountElement.textContent = "";
+  todayCountElement.hidden = badgeCount === 0;
+  upcomingCountElement.hidden = true;
+  completedCountElement.hidden = true;
+}
+
+function markFilterSeen(filter) {
+  if (!state.settings.seenAt) state.settings.seenAt = {};
+  state.settings.seenAt[filter] = new Date().toISOString();
 }
 
 function render() {
@@ -4324,28 +4709,36 @@ function renderTaskList(tasks) {
 }
 
 function taskTimeLabel(task) {
-  const due = taskDateTime(task) || parseIsoDate(task.endDate || task.startDate);
-  const date = due ? formatDate(toIsoDate(due)) : "日期待定";
   const nextStep = getNextStep(task);
-  const time =
-    nextStep?.time ||
-    nextStep?.endTime ||
-    task.endTime ||
-    task.startTime ||
-    "";
-  const timeLabel = time
-    ? task.taskType === "线上会议" && task.endTime
-      ? `${time}-${task.endTime}`
-      : time
-    : "时间待定";
-  return `${date} ${timeLabel}`;
+  if (nextStep?.date) {
+    if (nextStep.endDate || nextStep.endTime) {
+      const endDate = nextStep.endDate || nextStep.date;
+      const endTime = nextStep.endTime || nextStep.time;
+      return endDate === nextStep.date
+        ? `${formatDate(nextStep.date)} ${nextStep.time}-${endTime}`
+        : `${formatDate(nextStep.date)} ${nextStep.time} → ${formatDate(endDate)} ${endTime}`;
+    }
+    return `${formatDate(nextStep.date)} ${nextStep.time || "时间待定"}`;
+  }
+  if (task.startTime && task.endTime) {
+    return task.startDate === task.endDate
+      ? `${formatDate(task.startDate)} ${task.startTime}-${task.endTime}`
+      : `${formatDate(task.startDate)} ${task.startTime} → ${formatDate(task.endDate)} ${task.endTime}`;
+  }
+  if (task.startTime) return `${formatDate(task.startDate)} ${task.startTime}`;
+  if (task.endTime) return `${formatDate(task.endDate)} ${task.endTime} 截止`;
+  const fallback = parseIsoDate(task.endDate || task.startDate);
+  return fallback ? `${formatDate(toIsoDate(fallback))} 时间待定` : "时间待定";
 }
 
 function renderTaskItem(task) {
   const completed = task.status === "done";
   const taskDue = taskDateTime(task);
+  const taskEnd = taskEndDateTime(task);
+  const inProgress = !completed && taskDue && taskEnd && taskDue <= new Date() && taskEnd > new Date();
   const overdue =
     !completed &&
+    !inProgress &&
     taskDue &&
     taskDue < new Date() &&
     !(task.taskType === "线上会议" && taskEndDateTime(task) < new Date());
@@ -4353,7 +4746,7 @@ function renderTaskItem(task) {
   const progress = taskProgress(task);
   const nextStep = getNextStep(task);
   return `
-    <article class="task-item ${completed ? "is-completed" : ""} ${overdue ? "is-overdue" : ""} ${soon ? "is-soon" : ""}" data-task-id="${task.id}">
+    <article class="task-item ${completed ? "is-completed" : ""} ${overdue ? "is-overdue" : ""} ${soon ? "is-soon" : ""} ${inProgress ? "is-in-progress" : ""}" data-task-id="${task.id}">
       <button class="task-check" type="button" data-action="${completed ? "restore-task" : "complete-task"}" data-id="${task.id}" aria-label="${completed ? "恢复任务" : "完成任务"}">
         ${icon("check")}
       </button>
@@ -4564,6 +4957,7 @@ function submitConditions() {
   const conditions = pendingConditionalParsed.task.conditions || [];
   const resolvedSteps = [];
   const answers = {};
+  let skipTask = false;
 
   for (let index = 0; index < conditions.length; index += 1) {
     const condition = conditions[index];
@@ -4580,6 +4974,10 @@ function submitConditions() {
     }
     const option = condition.options.find((item) => item.value === selected.value);
     answers[condition.id] = selected.value;
+    if (option?.skipTask) skipTask = true;
+    if (option?.location) {
+      pendingConditionalParsed.task.location = option.location;
+    }
     if (option?.step) {
       resolvedSteps.push(taskStep(option.step.text, option.step));
     }
@@ -4595,6 +4993,12 @@ function submitConditions() {
     ...(state.settings.conditionAnswers || {}),
     ...answers,
   };
+  if (skipTask) {
+    saveState();
+    closeSheet();
+    showToast("根据选择，这条通知无需创建任务");
+    return;
+  }
   saveState();
   pendingParsedTask = pendingConditionalParsed;
   pendingConditionalParsed = null;
@@ -5052,6 +5456,73 @@ function openTaskEditorSheet(taskId) {
   });
 }
 
+function openGuide(page = 0) {
+  const pages = [
+    {
+      icon: "clipboard-paste",
+      title: "粘贴群通知",
+      text: "把群消息完整复制进来，软件会提取任务标题、日期、DDL、地点和注意事项。",
+    },
+    {
+      icon: "git-branch",
+      title: "确认条件",
+      text: "遇到男生女生、报名入库、导生或临负等条件时，先选择符合自己的情况。",
+    },
+    {
+      icon: "list-checks",
+      title: "分步完成",
+      text: "首页点击大任务进入进度界面，小任务可以独立打勾，右上角编辑按钮用于修改。",
+    },
+    {
+      icon: "triangle-alert",
+      title: "查看注意事项",
+      text: "携带物品、着装、到场时间、手机静音和座位安排会集中显示在注意事项板块。",
+    },
+    {
+      icon: "shield-check",
+      title: "本地保存",
+      text: "任务只保存在当前设备。可以添加到主屏幕，Android 用户也可以下载安装包。",
+    },
+  ];
+  guidePage = Math.max(0, Math.min(page, pages.length - 1));
+  const current = pages[guidePage];
+  openSheet({
+    title: "使用说明",
+    subtitle: `${guidePage + 1} / ${pages.length}`,
+    content: `
+      <div class="guide-card">
+        <span class="guide-icon">${icon(current.icon)}</span>
+        <h3>${current.title}</h3>
+        <p>${current.text}</p>
+        <div class="guide-dots">
+          ${pages
+            .map((_, index) => `<span class="${index === guidePage ? "is-active" : ""}"></span>`)
+            .join("")}
+        </div>
+      </div>
+    `,
+    footer: `
+      <button class="ghost-button" type="button" data-action="finish-guide">跳过</button>
+      ${
+        guidePage > 0
+          ? `<button class="secondary-button" type="button" data-action="guide-prev">上一步</button>`
+          : ""
+      }
+      <button class="primary-button" type="button" data-action="${
+        guidePage === pages.length - 1 ? "finish-guide" : "guide-next"
+      }">
+        ${guidePage === pages.length - 1 ? "开始使用" : "下一步"}
+      </button>
+    `,
+  });
+}
+
+function finishGuide() {
+  state.settings.guideSeen = true;
+  saveState();
+  closeSheet();
+}
+
 function openSettingsSheet() {
   openSheet({
     title: "设置",
@@ -5085,7 +5556,7 @@ function openSettingsSheet() {
             <div class="field">
               <label for="settingsRole">班级角色</label>
               <select id="settingsRole">
-                ${["普通学生", "宿舍长", "舍长", "临负", "团支部书记", "班长"]
+                ${["普通学生", "宿舍长", "舍长", "临负", "导生", "团支部书记", "班长"]
                   .map(
                     (role) =>
                       `<option value="${role}" ${state.settings.role === role ? "selected" : ""}>${role}</option>`
@@ -5102,7 +5573,6 @@ function openSettingsSheet() {
                 <option value="女" ${state.settings.gender === "女" ? "selected" : ""}>女</option>
                 <option value="其他" ${state.settings.gender === "其他" ? "selected" : ""}>其他</option>
               </select>
-              <span class="helper-text">用于处理“男生交给文博、女生交给馨月”等分支通知。</span>
             </div>
           </div>
         </div>
@@ -5123,6 +5593,14 @@ function openSettingsSheet() {
             <button class="secondary-button" type="button" data-action="export-data">${icon("download")} 导出备份</button>
             <label class="secondary-button file-button" for="importData">${icon("upload")} 导入备份</label>
             <button class="danger-button" type="button" data-action="clear-data">${icon("trash-2")} 清空</button>
+          </div>
+        </div>
+
+        <div class="settings-card">
+          <h3>使用说明</h3>
+          <p>查看通知粘贴、条件筛选、子任务和注意事项的使用方法。</p>
+          <div class="settings-actions">
+            <button class="secondary-button" type="button" data-action="open-guide">${icon("circle-help")} 查看使用说明</button>
           </div>
         </div>
 
@@ -5190,6 +5668,7 @@ function saveParsedTask() {
   state.tasks.unshift(newTask);
   const referenceDate = newTask.endDate || newTask.startDate;
   activeFilter = referenceDate && referenceDate <= todayIso() ? "today" : "upcoming";
+  markFilterSeen(activeFilter);
   saveState();
   closeSheet();
   render();
@@ -5431,6 +5910,11 @@ function handleAction(actionElement) {
         return;
       }
       const parsed = parseNotice(text, state.settings);
+      if (parsed.task.skip) {
+        closeSheet();
+        showToast("根据你的身份设置，这条通知无需创建任务");
+        return;
+      }
       if (parsed.task.conditions?.length) {
         pendingConditionalParsed = parsed;
         openConditionPrompt(parsed);
@@ -5509,6 +5993,10 @@ function handleAction(actionElement) {
     "delete-task": () => deleteTask(id),
     "confirm-delete": () => pendingConfirmAction?.(),
     "open-settings": openSettingsSheet,
+    "open-guide": () => openGuide(0),
+    "guide-next": () => openGuide(guidePage + 1),
+    "guide-prev": () => openGuide(guidePage - 1),
+    "finish-guide": finishGuide,
     "save-settings": () => {
       const name = document.querySelector("#settingsName")?.value.trim() || "";
       const studentId = document.querySelector("#settingsStudentId")?.value.trim() || "";
@@ -5578,6 +6066,7 @@ document.addEventListener("click", (event) => {
   const filterButton = event.target.closest("[data-filter]");
   if (filterButton) {
     activeFilter = filterButton.dataset.filter;
+    markFilterSeen(activeFilter);
     saveState();
     render();
     return;
@@ -5627,6 +6116,9 @@ if (!isNativeApp && !isStandaloneWeb && "serviceWorker" in navigator && /^https?
 
 saveState();
 render();
+if (!state.settings.guideSeen) {
+  window.setTimeout(() => openGuide(0), 350);
+}
 
     </script>
   </body>
